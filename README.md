@@ -69,3 +69,12 @@ platform-engineering-gitops-argocd/
 * Continuous delivery
 * Platform engineering practices
 * ArgoCD architecture
+## Screenshots
+
+### ArgoCD Application
+
+![ArgoCD Application](docs/screenshots/argocd-healthy-synced.png)
+
+### Kubernetes Resources
+
+![Kubernetes Resources](docs/screenshots/kubectl-resources.png)
