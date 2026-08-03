@@ -3,9 +3,23 @@ kind: Deployment
 
 metadata:
   name: nginx
+  labels:
+    app: nginx
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/part-of: gitops-demo
+    app.kubernetes.io/managed-by: argocd
 
 spec:
   replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 5
+  progressDeadlineSeconds: 600
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
 
   selector:
     matchLabels:
@@ -15,11 +29,52 @@ spec:
     metadata:
       labels:
         app: nginx
+        app.kubernetes.io/name: nginx
+        app.kubernetes.io/part-of: gitops-demo
+        app.kubernetes.io/managed-by: argocd
 
     spec:
-      containers:
-      - name: nginx
-        image: nginx:latest
+      terminationGracePeriodSeconds: 30
 
-        ports:
-        - containerPort: 80
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: nginx
+          image: nginx:1.30.4-alpine
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
