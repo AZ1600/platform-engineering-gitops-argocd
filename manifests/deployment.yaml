@@ -38,17 +38,22 @@ spec:
       terminationGracePeriodSeconds: 30
 
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
 
       containers:
         - name: nginx
-          image: nginx:1.30.4-alpine
+          image: nginxinc/nginx-unprivileged:1.30.4-alpine@sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49
           imagePullPolicy: IfNotPresent
 
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
               protocol: TCP
 
           readinessProbe:
@@ -79,3 +84,17 @@ spec:
 
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
