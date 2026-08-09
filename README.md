@@ -4,65 +4,57 @@
 
 ## Overview
 
-This project demonstrates GitOps-based continuous delivery using Argo CD and Kubernetes.
+This project demonstrates a secure GitOps continuous-delivery workflow using Argo CD, Kubernetes and GitHub Actions.
 
-Kubernetes manifests are stored in GitHub as the desired state. Argo CD monitors the `main` branch, compares the manifests with the live cluster, and automatically reconciles differences.
+Kubernetes resources are defined declaratively in Git. Changes are introduced through protected pull requests, validated in CI and merged into the `main` branch. Argo CD continuously compares the repository with the Kubernetes cluster and automatically reconciles differences.
 
-The project can be tested locally with Docker Desktop Kubernetes. The same GitOps structure can also target Amazon EKS after updating the cluster destination and bootstrap process.
+The project is currently demonstrated on a local Docker Desktop Kubernetes cluster. The manifests and GitOps design can also be adapted for managed Kubernetes platforms such as Amazon EKS.
 
 ## Architecture
 
-```text
-Developer
-    |
-    v
-Feature branch
-    |
-    v
-Pull request
-    |
-    v
-GitHub Actions validation
-    |
-    v
-Protected main branch
-    |
-    v
-Argo CD
-    |
-    v
-Kubernetes cluster
-    |
-    v
-NGINX Deployment and Service
+```mermaid
+flowchart TD
+    DEV["Developer"] --> BRANCH["Feature branch"]
+    BRANCH --> PR["GitHub pull request"]
+    PR --> CI["GitHub Actions validation"]
+    CI --> RULES["Protected main branch"]
+    RULES --> REPO["Git repository"]
+    REPO --> ARGO["Argo CD"]
+    ARGO --> CLUSTER["Kubernetes cluster"]
+
+    CLUSTER --> NS["nginx namespace"]
+    NS --> DEPLOY["NGINX Deployment"]
+    DEPLOY --> POD1["NGINX Pod 1"]
+    DEPLOY --> POD2["NGINX Pod 2"]
+    NS --> SERVICE["ClusterIP Service"]
+    SERVICE --> DEPLOY
 ```
 
-## GitOps workflow
+## GitOps Workflow
 
-1. Create a feature branch.
-2. Modify the Kubernetes or Argo CD configuration.
-3. Open a pull request.
-4. GitHub Actions validates YAML and Kubernetes schemas.
-5. Merge only after the required check passes.
-6. Argo CD detects the new `main` revision.
-7. Argo CD synchronizes the cluster with Git.
-8. Kubernetes performs a rolling update when the pod template changes.
-
-Direct changes to `main` are restricted by a GitHub ruleset.
+1. A developer creates a feature branch.
+2. Kubernetes or Argo CD configuration is changed.
+3. A pull request is opened against `main`.
+4. GitHub Actions checks YAML quality and Kubernetes schemas.
+5. The protected branch permits the change to be merged after the required check passes.
+6. Argo CD detects the new Git revision.
+7. Argo CD synchronizes the desired state into Kubernetes.
+8. Kubernetes performs the rollout and reports resource health.
+9. Argo CD reports the application as `Healthy` and `Synced`.
 
 ## Technologies
 
-- Argo CD
 - Kubernetes
-- Docker Desktop Kubernetes
-- Amazon EKS compatible
-- GitHub
+- Argo CD
+- Docker Desktop
 - GitHub Actions
-- Docker
-- Kubeconform
+- GitHub branch protection
+- NGINX
 - Yamllint
+- Kubeconform
+- GitOps
 
-## Repository structure
+## Repository Structure
 
 ```text
 platform-engineering-gitops-argocd/
@@ -74,8 +66,10 @@ platform-engineering-gitops-argocd/
 │   └── project.yaml
 ├── docs/
 │   └── screenshots/
-│       ├── argocd-healthy-synced.png
-│       └── kubectl-resources.png
+│       ├── argocd-resource-tree.png
+│       ├── kubectl-resources.png
+│       ├── nginx-application.png
+│       └── protected-pr-validation.png
 ├── manifests/
 │   ├── deployment.yaml
 │   └── service.yaml
@@ -84,72 +78,90 @@ platform-engineering-gitops-argocd/
 
 ## Components
 
-### Argo CD AppProject
-
-`argocd/project.yaml` defines the security boundary for the application.
-
-It restricts:
-
-- Which Git repository Argo CD may use
-- Which cluster and namespace it may deploy to
-- Which Kubernetes resource kinds it may create
-
 ### Argo CD Application
 
-`argocd/application.yaml` tells Argo CD to:
+`argocd/application.yaml` defines the application watched by Argo CD.
 
-- Monitor the `main` branch
-- Read manifests from `manifests/`
-- Deploy into the `nginx` namespace
-- Prune resources removed from Git
-- Reverse manual configuration drift
-- Retry temporary synchronization failures
+It includes:
 
-### NGINX Deployment
+- Automated synchronization
+- Automatic pruning
+- Self-healing
+- Namespace creation
+- Retry behaviour
+- Deployment from the `main` branch
+- Kubernetes manifests loaded from `manifests/`
 
-`manifests/deployment.yaml` defines a two-replica NGINX workload with:
+### Argo CD Project
 
-- Rolling updates
-- Readiness and liveness probes
-- CPU and memory requests and limits
-- RuntimeDefault seccomp profile
-- Automatic ServiceAccount-token mounting disabled
-- Non-root UID and GID
-- Read-only root filesystem
-- All Linux capabilities removed
-- Memory-backed temporary storage
-- Container image pinned by digest
+`argocd/project.yaml` limits the application's permitted source repository, deployment destination and Kubernetes resource types.
 
-### NGINX Service
+### Kubernetes Deployment
 
-`manifests/service.yaml` provides internal access to the NGINX pods through a ClusterIP Service.
+`manifests/deployment.yaml` manages the NGINX replicas and applies workload security controls.
 
-The Service exposes port `80` and forwards traffic to the container's named `http` port on `8080`.
+The container:
+
+- Runs as non-root UID and GID `101`
+- Uses the unprivileged NGINX image
+- Uses an image pinned by digest
+- Uses a read-only root filesystem
+- Prevents privilege escalation
+- Drops all Linux capabilities
+- Uses the `RuntimeDefault` seccomp profile
+- Does not automatically mount a service-account token
+- Uses memory-backed temporary storage
+- Exposes container port `8080`
+
+### Kubernetes Service
+
+`manifests/service.yaml` provides stable internal access to the NGINX Pods and forwards traffic to the named HTTP container port.
+
+## Continuous Integration
+
+The GitHub Actions workflow validates repository changes before they are merged.
+
+### YAML linting
+
+Yamllint checks:
+
+- YAML formatting and indentation
+- Duplicate keys
+- Trailing whitespace
+- Missing final newlines
+- Common YAML quality problems
+
+### Kubernetes schema validation
+
+Kubeconform performs strict schema validation of the standard Kubernetes manifests in `manifests/`.
+
+The workflow uses:
+
+- Minimal read-only GitHub permissions
+- Pinned action and container dependencies
+- A job timeout
+- Concurrency cancellation
+- A required status check on the protected `main` branch
+
+Passing CI confirms that the files meet the configured YAML and Kubernetes schema rules. Runtime behaviour is verified separately in the Kubernetes cluster.
 
 ## Prerequisites
 
-Install and configure:
+Install:
 
-- Docker Desktop with Kubernetes enabled, or access to a Kubernetes cluster
+- Docker Desktop with Kubernetes enabled
 - `kubectl`
-- `git`
-- Docker
-- A GitHub account
+- Git
+- Argo CD CLI (optional but recommended)
 
-Confirm the active Kubernetes context before making changes:
+Confirm cluster access:
 
 ```bash
 kubectl config current-context
 kubectl cluster-info
 ```
 
-For local testing, the expected context is:
-
-```text
-docker-desktop
-```
-
-## Install Argo CD locally
+## Install Argo CD Locally
 
 Create the Argo CD namespace:
 
@@ -157,84 +169,69 @@ Create the Argo CD namespace:
 kubectl create namespace argocd
 ```
 
-Install the pinned Argo CD release:
+Install Argo CD:
 
 ```bash
 kubectl apply \
   --namespace argocd \
-  --server-side \
-  --force-conflicts \
-  --filename https://raw.githubusercontent.com/argoproj/argo-cd/v3.4.1/manifests/install.yaml
+  --filename https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
 
-Wait for all Argo CD pods:
+Wait for the workloads:
 
 ```bash
 kubectl wait \
   --namespace argocd \
-  --for=condition=Ready \
-  pod \
+  --for=condition=Available \
+  deployment \
   --all \
   --timeout=300s
 ```
 
-Verify:
+## Bootstrap the GitOps Application
 
-```bash
-kubectl get pods --namespace argocd
-```
-
-## Bootstrap the GitOps application
-
-Apply the AppProject first:
+Apply the project first:
 
 ```bash
 kubectl apply --filename argocd/project.yaml
 ```
 
-Then create the Application:
+Then apply the application:
 
 ```bash
 kubectl apply --filename argocd/application.yaml
 ```
 
-Watch synchronization:
+Argo CD will create the `nginx` namespace and synchronize the manifests automatically.
+
+## Verify the Deployment
+
+Check the Argo CD application:
 
 ```bash
-kubectl get application nginx \
-  --namespace argocd \
-  --watch
+kubectl get application nginx --namespace argocd
 ```
 
-The desired state is:
+Expected status:
 
 ```text
 NAME    SYNC STATUS   HEALTH STATUS
 nginx   Synced        Healthy
 ```
 
-## Verify the workload
+Check the Kubernetes resources:
 
 ```bash
-kubectl get deployment,service,pods --namespace nginx
+kubectl get all --namespace nginx
+```
+
+Verify the rollout:
+
+```bash
 kubectl rollout status deployment/nginx --namespace nginx
 ```
 
-Verify that ServiceAccount tokens are not mounted automatically:
-
-```bash
-kubectl get deployment nginx \
-  --namespace nginx \
-  --output jsonpath='{.spec.template.spec.automountServiceAccountToken}{"\n"}'
-```
-
-Expected:
-
-```text
-false
-```
-
-Verify the container's runtime identity:
+Verify that the container runs as a non-root user:
 
 ```bash
 POD_NAME=$(kubectl get pods \
@@ -242,17 +239,14 @@ POD_NAME=$(kubectl get pods \
   --selector app=nginx \
   --output jsonpath='{.items[0].metadata.name}')
 
-kubectl exec \
-  --namespace nginx \
-  "${POD_NAME}" \
-  -- id
+kubectl exec --namespace nginx "$POD_NAME" -- id
 ```
 
-The process should use non-root UID and GID `101`.
+The output should show UID and GID `101`.
 
-## Access NGINX locally
+## Access the Application
 
-Start port forwarding:
+Forward a local port to the Kubernetes Service:
 
 ```bash
 kubectl port-forward \
@@ -261,40 +255,52 @@ kubectl port-forward \
   8080:80
 ```
 
-In another terminal:
+Open:
 
-```bash
-curl --fail http://localhost:8080
+```text
+http://localhost:8080
 ```
 
-Press `Ctrl+C` to stop port forwarding.
+## Project Evidence
 
-## Continuous integration
+### Argo CD Resource Tree
 
-GitHub Actions validates relevant repository changes with:
+Argo CD continuously reconciles the Git repository with the Kubernetes cluster. The application is synchronized and healthy, and its Deployment and Service match the desired state in Git.
 
-- Yamllint for YAML formatting
-- Kubeconform for strict Kubernetes schema validation
-- Read-only workflow permissions
-- Pinned action and container dependencies
-- Concurrent-run cancellation
+![Argo CD resource tree](docs/screenshots/argocd-resource-tree.png)
 
-Run Kubeconform locally:
+### Protected Pull Request Validation
 
-```bash
-docker run --rm \
-  --volume "${PWD}:/work" \
-  ghcr.io/yannh/kubeconform:v0.7.0@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c \
-  -strict \
-  -summary \
-  /work/manifests
-```
+Changes are merged through pull requests after the required YAML and Kubernetes schema validation succeeds. This example also documents the migration of NGINX to a restricted, non-root container.
+
+![Protected pull request validation](docs/screenshots/protected-pr-validation.png)
+
+### Deployed NGINX Application
+
+The application is accessible through the Kubernetes Service using local port forwarding.
+
+![Deployed NGINX application](docs/screenshots/nginx-application.png)
+
+### Kubernetes Resources
+
+The Deployment, Service and Pods can also be inspected directly using `kubectl`.
+
+![Kubernetes resources](docs/screenshots/kubectl-resources.png)
 
 ## Troubleshooting
 
+### Argo CD namespace not found
+
+Verify that Argo CD is installed:
+
+```bash
+kubectl get namespace argocd
+kubectl get pods --namespace argocd
+```
+
 ### Application remains OutOfSync
 
-Force Argo CD to refresh its Git information:
+Request a hard refresh:
 
 ```bash
 kubectl annotate application nginx \
@@ -303,60 +309,47 @@ kubectl annotate application nginx \
   --overwrite
 ```
 
-Inspect the Application:
+Then check its status:
 
 ```bash
-kubectl describe application nginx --namespace argocd
+kubectl get application nginx --namespace argocd
 ```
 
-### Pods do not become ready
+### Local port is already in use
+
+Use a different local port:
 
 ```bash
-kubectl get pods --namespace nginx
-kubectl describe deployment nginx --namespace nginx
-kubectl logs --namespace nginx deployment/nginx
+kubectl port-forward \
+  --namespace nginx \
+  service/nginx-service \
+  8081:80
 ```
 
-### Compare Git and Argo CD revisions
+Then open `http://localhost:8081`.
 
-```bash
-git fetch origin
-git rev-parse origin/main
-
-kubectl get application nginx \
-  --namespace argocd \
-  --output jsonpath='{.status.sync.revision}{"\n"}'
-```
-
-## Screenshots
-
-### Argo CD Application
-
-![Argo CD Application](docs/screenshots/argocd-healthy-synced.png)
-
-### Kubernetes resources
-
-![Kubernetes Resources](docs/screenshots/kubectl-resources.png)
-
-## Learning outcomes
+## Learning Outcomes
 
 This project demonstrates:
 
-- GitOps principles
-- Declarative Argo CD configuration
-- Pull-request-based delivery
-- Automated manifest validation
-- Protected deployment branches
-- Kubernetes rolling updates
-- Configuration-drift correction
-- Least-privilege container security
-- Reproducible local Kubernetes testing
+- GitOps continuous delivery
+- Declarative Kubernetes configuration
+- Argo CD projects and applications
+- Automated reconciliation and self-healing
+- Protected pull-request workflows
+- Kubernetes schema validation in CI
+- Secure non-root container execution
+- Image digest pinning
+- Kubernetes workload security controls
+- Operational verification and troubleshooting
 
-## Future improvements
+## Future Improvements
 
-- Add Kustomize base and environment overlays
-- Add NetworkPolicy and PodDisruptionBudget
-- Validate Argo CD custom resources in CI
-- Add dependency update automation
-- Add monitoring, alerts, and operational runbooks
-- Provision EKS and Argo CD through infrastructure as code
+- Add Customize overlays for development, staging and production
+- Add a Kubernetes `NetworkPolicy`
+- Add a `PodDisruptionBudget`
+- Add CPU and memory resource policies
+- Add Prometheus metrics, dashboards and alerts
+- Add automated dependency updates
+- Provision a cloud Kubernetes environment with Terraform or OpenTofu
+- Add deployment and incident runbooks
