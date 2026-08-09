@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+
+metadata:
+  name: gitops-demo
+  namespace: argocd
+
+spec:
+  description: Argo CD project for the NGINX GitOps demo
+
+  sourceRepos:
+    - https://github.com/AZ1600/platform-engineering-gitops-argocd.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: nginx
+
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
