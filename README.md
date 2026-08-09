@@ -57,23 +57,35 @@ flowchart TD
 ## Repository Structure
 
 ```text
-platform-engineering-gitops-argocd/
-├── .github/
-│   └── workflows/
-│       └── validate-manifests.yaml
-├── argocd/
-│   ├── application.yaml
-│   └── project.yaml
-├── docs/
-│   └── screenshots/
-│       ├── argocd-resource-tree.png
-│       ├── kubectl-resources.png
-│       ├── nginx-application.png
-│       └── protected-pr-validation.png
-├── manifests/
-│   ├── deployment.yaml
-│   └── service.yaml
-└── README.md
+```mermaid
+flowchart LR
+    DEV["&nbsp;&nbsp;Developer&nbsp;&nbsp;"]
+    BRANCH["&nbsp;&nbsp;Feature branch&nbsp;&nbsp;"]
+    PR["&nbsp;&nbsp;Pull request&nbsp;&nbsp;"]
+    CI["&nbsp;&nbsp;GitHub Actions<br/>manifest validation&nbsp;&nbsp;"]
+    MAIN["&nbsp;&nbsp;Protected main&nbsp;&nbsp;"]
+    ARGO["&nbsp;&nbsp;Argo CD&nbsp;&nbsp;"]
+    K8S["&nbsp;&nbsp;Kubernetes cluster&nbsp;&nbsp;"]
+
+    DEV --> BRANCH
+    BRANCH --> PR
+    PR --> CI
+    CI --> MAIN
+    MAIN --> ARGO
+    ARGO --> K8S
+
+    subgraph NS["nginx namespace"]
+        SVC["&nbsp;&nbsp;ClusterIP Service&nbsp;&nbsp;"]
+        DEP["&nbsp;&nbsp;NGINX Deployment&nbsp;&nbsp;"]
+        POD1["&nbsp;&nbsp;Pod 1&nbsp;&nbsp;"]
+        POD2["&nbsp;&nbsp;Pod 2&nbsp;&nbsp;"]
+
+        SVC --> DEP
+        DEP --> POD1
+        DEP --> POD2
+    end
+
+    K8S --> SVC
 ```
 
 ## Components
