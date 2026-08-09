@@ -23,9 +23,3 @@ spec:
       kind: Deployment
     - group: ""
       kind: Service
-
-  namespaceResourceWhitelist:
-    - group: apps
-      kind: Deployment
-    - group: ""
-      kind: Service
