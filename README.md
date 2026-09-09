@@ -372,22 +372,30 @@ argocd/
 
 ## Kubernetes Schema Validation
 
-Kubeconform performs strict schema validation against the standard Kubernetes resources in:
+Kubeconform performs strict schema validation across both the Kubernetes workload manifests and the Argo CD custom resources:
 
 ```text
 manifests/
+argocd/
 ```
+
+Standard Kubernetes resources are validated against the built-in Kubernetes schemas.
+
+Argo CD `Application` and `AppProject` resources are validated against pinned CRD schemas from the CRDs catalog, ensuring the GitOps control-plane configuration is structurally validated alongside the workload it deploys.
 
 The workflow includes:
 
-- Strict schema validation
+- Strict Kubernetes schema validation
+- Argo CD custom-resource schema validation
 - Validation summary output
 - Minimal `contents: read` permissions
-- Pinned dependencies
+- Pinned GitHub Actions dependencies
+- Pinned Kubeconform container image
+- Pinned Argo CD CRD schema source
 - Job timeout
 - Concurrency cancellation
 
-Passing CI confirms that the Kubernetes manifests satisfy the configured structural validation rules.
+Passing CI confirms that both the Kubernetes workload manifests and the Argo CD configuration satisfy the configured structural validation rules.
 
 Runtime behaviour is verified separately inside the Kubernetes cluster.
 
