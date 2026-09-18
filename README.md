@@ -928,7 +928,7 @@ Cloud deployment to Amazon EKS remains a future extension rather than a current 
 
 **Olawale Azeez**
 
-Cloud Engineer | Platform Engineer | DevOps Engineer
+DevOps Engineer | Platform Engineer | Cloud Engineer
 
 Focused on Kubernetes, GitOps, Platform Engineering, AWS, Infrastructure as Code, CI/CD, observability and cloud-native engineering.
 
