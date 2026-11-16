@@ -33,6 +33,11 @@ jobs:
       - name: Install YAML linter
         run: pip install --disable-pip-version-check yamllint==1.37.1
 
+      - name: Test GitOps security policies
+        run: |
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+          python3 scripts/check_gitops_policies.py
+
       - name: Lint YAML files
         run: |
           yamllint \
