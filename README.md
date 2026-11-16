@@ -395,9 +395,27 @@ The workflow includes:
 - Job timeout
 - Concurrency cancellation
 
-Passing CI confirms that both the Kubernetes workload manifests and the Argo CD configuration satisfy the configured structural validation rules.
+Passing schema validation alone does not guarantee that configuration is safe. A valid Kubernetes manifest can still enable root execution, mount API credentials or expose a public Service.
 
-Runtime behaviour is verified separately inside the Kubernetes cluster.
+## GitOps Security Policy Regression Checks
+
+CI also runs `scripts/check_gitops_policies.py` and 12 negative/positive regression tests in `tests/test_gitops_policies.py`. These repository-specific checks preserve the hardened NGINX workload and scoped Argo CD settings, including:
+
+- Non-root execution, disabled ServiceAccount token mounting, read-only root filesystem, dropped capabilities and digest-pinned image
+- Probes, resource budgets, private ClusterIP Service and consistent Pod selectors
+- Argo CD tracking only `main` from the approved repository and deploying to the `nginx` namespace
+- An `AppProject` limited to that repository, namespace and approved resource kinds
+
+Run locally with Python and PyYAML (`yamllint==1.37.1` installs PyYAML as a dependency):
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/check_gitops_policies.py
+```
+
+These checks protect the **currently documented demo configuration**. They are not admission policies, do not verify a live cluster and must be reviewed when the application's intended permissions or deployment model change.
+
+Passing CI confirms the configured YAML, schemas and repository-specific policy assertions. Runtime behaviour is verified separately inside the Kubernetes cluster.
 
 ---
 
